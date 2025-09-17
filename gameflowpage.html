@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Game Flow</title>
+  </head>
+  <script>
+  // Fetch the JSON file
+  fetch('gameflow.json')
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('game-flow-container');
+      data.gameFlow.forEach(section => {
+        // Create section title
+        const sectionTitle = document.createElement('h2');
+        sectionTitle.textContent = section.section;
+        container.appendChild(sectionTitle);
+
+        // Create list of steps
+        const stepsList = document.createElement('ol');
+        section.steps.forEach(stepText => {
+          const stepItem = document.createElement('li');
+          stepItem.textContent = stepText;
+          stepsList.appendChild(stepItem);
+        });
+        container.appendChild(stepsList);
+      });
+    })
+    .catch(error => {
+      console.error('Error loading JSON:', error);
+      const container = document.getElementById('game-flow-container');
+      container.textContent = 'Failed to load game flow content.';
+    });
+</script>
+  <body>
+    <div id="game-flow-container"></div>
+  </body>
+</html>

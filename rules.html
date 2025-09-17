@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Game Rules - Principles Tab</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  #tabs { margin-bottom: 10px; }
+  .tab-button {
+    padding: 10px 15px;
+    cursor: pointer;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    margin-right: 5px;
+    border-bottom: none;
+  }
+  .tab-button.active {
+    background: white;
+    font-weight: bold;
+    border-top: 2px solid blue;
+  }
+  #tab-content {
+    border: 1px solid #ccc;
+    padding: 15px;
+    min-height: 300px;
+    background: white;
+  }
+  #search-container {
+    margin-bottom: 10px;
+    position: relative;
+    width: 300px;
+  }
+  #search-input {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  #search-results {
+    position: absolute;
+    top: 100%;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    background: white;
+    z-index: 10;
+    display: none;
+  }
+  #search-results div {
+    padding: 8px;
+    cursor: pointer;
+  }
+  #search-results div:hover {
+    background-color: #e0e0ff;
+  }
+  h2 { margin-top: 1em; }
+  ul { padding-left: 1.2em; }
+  .boxout {
+    border: 2px solid #007acc;
+    background: #ddf0ff;
+    padding: 10px;
+    margin: 1em 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Game Rules Website</h1>
+
+<div id="search-container">
+  <input id="search-input" type="text" placeholder="Search all rules by id or title..." autocomplete="off" />
+  <div id="search-results"></div>
+</div>
+
+<div id="tabs">
+  <button class="tab-button active" data-tab="principles">Principles</button>
+  <button class="tab-button" data-tab="gameflow">Game Flow</button>
+  <button class="tab-button" data-tab="other">Other Tab</button>
+</div>
+
+<div id="tab-content">
+  Loading "Principles" rules...
+</div>
+
+<script>
+  // Simulated JSON for other tabs - normally load via fetch from other json files
+  const otherTabsData = {
+    "gameflow": [
+      { id: "gameflow1", title: "Game Flow Section 1", content: "Example content for game flow section 1." },
+      { id: "gameflow2", title: "Game Flow Section 2", content: "Example content for game flow section 2." }
+    ],
+    "other": [
+      { id: "other1", title: "Other Tab Section 1", content: "Content for other tab section 1." }
+    ]
+  };
+
+  // Store all loaded tab contents here for search operations.
+  // Key: tab id; Value: array of section objects
+  const allTabsContent = {
+    principles: []
+  };
+
+  // Elements references
+  const tabs = document.querySelectorAll('.tab-button');
+  const tabContentEl = document.getElementById('tab-content');
+  const searchInput = document.getElementById('search-input');
+  const searchResultsEl = document.getElementById('search-results');
+
+  // Load the Principles JSON and initialize display
+  fetch('rules_principles.json')
+    .then(response => response.json())
+    .then(data => {
+      allTabsContent.principles = flattenRules(data.rules);
+      if(isActiveTab('principles')) renderTabContent('principles');
+    })
+    .catch(err => {
+      tabContentEl.innerHTML = `<p style="color:red;">Failed to load Principles rules data.</p>`;
+      console.error(err);
+    });
+
+  // Flatten nested rules to array of searchable sections with id, title, content for search
+  function flattenRules(rules, parentTitle = '') {
+    let result = [];
+    for (const rule of rules) {
+      const fullTitle = parentTitle ? parentTitle + " > " + rule.title : rule.title;
+      let contentText = '';
+
+      if (rule.description) contentText += rule.description + '\n';
+      if (rule.paragraphs) contentText += rule.paragraphs.join('\n') + '\n';
+      if (rule.bullets) contentText += rule.bullets.join('\n') + '\n';
+
+      result.push({ id: rule.id, title: fullTitle, content: contentText.trim(), raw: rule });
+
+      // If subsections exist, recurse and add
+      if (rule.subsections) {
+        result = result.concat(flattenRules(rule.subsections, fullTitle));
+      }
+    }
+    return result;
+  }
+
+  // Tab click handling: change active and render
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      if(tab.classList.contains('active')) return;
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const tabId = tab.getAttribute('data-tab');
+      renderTabContent(tabId);
+      clearSearch();
+    });
+  });
+
+  // Render content of a tab by tab id
+  // For demo: principles loads from JSON; others use dummy data
+  function renderTabContent(tabId) {
+    let contentList = [];
+    if(tabId === 'principles') {
+      contentList = allTabsContent.principles;
+    } else if (otherTabsData[tabId]) {
+      contentList = otherTabsData[tabId];
+    } else {
+      tabContentEl.innerHTML = `<p>No content for tab '${tabId}'.</p>`;
+      return;
+    }
+    // Display all sections with titles and summaries (can style more)
+    tabContentEl.innerHTML = contentList.map(section => `
+      <section id="${section.id}" style="margin-bottom:1.5em;">
+        <h2>${escapeHtml(section.title)}</h2>
+        <p>${escapeHtml(section.content).replace(/\n/g,'<br>')}</p>
+      </section>
+    `).join('');
+  }
+
+  // Check if a tab is currently active
+  function isActiveTab(tabId) {
+    return document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.contains('active');
+  }
+
+  // Search input event: filter allTabsContent across tabs
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.trim().toLowerCase();
+    if(query.length === 0) {
+      searchResultsEl.style.display = 'none';
+      return;
+    }
+    
+    // Search across all tabs content by id and title
+    let results = [];
+    for (const [tabId, sections] of Object.entries({...allTabsContent, ...otherTabsData})) {
+      for (const section of sections) {
+        if(section.id.toLowerCase().includes(query) || section.title.toLowerCase().includes(query)) {
+          results.push({ tabId, id: section.id, title: section.title });
+        }
+      }
+    }
+
+    if(results.length === 0) {
+      searchResultsEl.innerHTML = '<div>No results found</div>';
+      searchResultsEl.style.display = 'block';
+      return;
+    }
+
+    // Build dropdown results
+    searchResultsEl.innerHTML = results.map(r => `
+      <div data-tab="${r.tabId}" data-id="${r.id}" tabindex="0">${escapeHtml(r.title)} [${escapeHtml(r.tabId)}]</div>
+    `).join('');
+    searchResultsEl.style.display = 'block';
+  });
+
+  // Handle selecting a search result: switch tab and scroll to section
+  searchResultsEl.addEventListener('click', event => {
+    const target = event.target.closest('div[data-tab][data-id]');
+    if(!target) return;
+    const tabId = target.getAttribute('data-tab');
+    const sectionId = target.getAttribute('data-id');
+    switchTabAndScroll(tabId, sectionId);
+  });
+
+  // Keyboard accessibility for search dropdown (Enter key)
+  searchResultsEl.addEventListener('keydown', event => {
+    if(event.key === 'Enter' && event.target.matches('div[data-tab][data-id]')) {
+      const tabId = event.target.getAttribute('data-tab');
+      const sectionId = event.target.getAttribute('data-id');
+      switchTabAndScroll(tabId, sectionId);
+    }
+  });
+
+  // Switch tabs and scroll to section
+  function switchTabAndScroll(tabId, sectionId) {
+    // Switch tab if needed
+    if(!isActiveTab(tabId)) {
+      tabs.forEach(t => t.classList.remove('active'));
+      const targetTab = document.querySelector(`.tab-button[data-tab="${tabId}"]`);
+      if(targetTab) targetTab.classList.add('active');
+      renderTabContent(tabId);
+      clearSearch();
+      // Delay scroll until content rendered
+      setTimeout(() => scrollToSection(sectionId), 100);
+    } else {
+      scrollToSection(sectionId);
+      clearSearch();
+    }
+  }
+
+  // Scroll smoothly to section by id
+  function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if(el) {
+      el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+  }
+
+  // Clear search input and hide dropdown
+  function clearSearch() {
+    searchInput.value = '';
+    searchResultsEl.style.display = 'none';
+  }
+
+  // Simple helper to escape HTML
+  function escapeHtml(text) {
+    return text.replace(/[&<>"']/g, function(m) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+  }
+</script>
+
+</body>
+</html>
